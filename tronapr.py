@@ -9,7 +9,7 @@ currBTTTRX = 0.038904 # TronWallet
 currBTTBTC = 0.00000009 # Binance
 currTRXBTC = 0.0000024 # Binance
 
-currBTCUSDT = 10229 # BitKeep
+currBTCUSDT = 10880 # BitKeep
 currTRXUSDT = 0.02462 # BitKeep
 
 startUSD = 423
@@ -99,18 +99,13 @@ def calcEarnings(startUSDT, percAPR, numDays):
     endUSDT = sum
     return endUSDT
 
+
+#UNCOMMENT to run 'eg' manualy test case
 print("\n\nEG options _ 'tronWalletBTT_to_bitKeepUSDT'")
 tronWalletBTT_to_bitKeepUSDT(eg_startBTT)
 
+#UNCOMMENT to run 'serg' manualy test case
 #print("\n\nSERG options _ 'tronWalletBTT_to_bitKeepUSDT'")
 #tronWalletBTT_to_bitKeepUSDT(serg_startBTT)
-
-straightUSDAmnt = '100000'
-print(f"\n\n other straigh USDT ${straightUSDAmnt} 'calcEarnings'")
-earnginsUSDT = calcEarnings(startUSDT=straightUSDAmnt, percAPR=100.0, numDays=1)
-earnginsUSDT = calcEarnings(startUSDT=earnginsUSDT, percAPR=50.0, numDays=1)
-earnginsUSDT = calcEarnings(startUSDT=earnginsUSDT, percAPR=15.0, numDays=10)
-earnginsUSDT = calcEarnings(startUSDT=earnginsUSDT, percAPR=3.0, numDays=19)
-
 
 print('\n\n END _ tronapr.py\n\n')
