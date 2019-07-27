@@ -28,12 +28,12 @@ def goCLI(fBuyPrice, fSellPrice):
     sellPrice = round(decimal.Decimal(fSellPrice), 8)
     profLoss = round(decimal.Decimal(profLoss), 2)
     strMarker = '------------------------------------------------------------>'
-    print(f' Buy Price: {buyPrice}')
-    print(f' Sell Price: {sellPrice}')
+    print(f' {strMarker} Buy Price: {buyPrice}')
+    print(f' {strMarker} Sell Price: {sellPrice}')
     if fSellPrice > fBuyPrice:
-        print(f' Profit: {strMarker} {profLoss}%')
+        print(f' {strMarker} Profit: {profLoss}%')
     else:
-        print(f' Loss: {strMarker} {profLoss}%')
+        print(f' {strMarker} Loss: {profLoss}%')
 
     print(f'DONE calculating ProfitLosss Percent...')
     printEndAndExit(0)
