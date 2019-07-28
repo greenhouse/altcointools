@@ -52,6 +52,7 @@ lst_iTimeSec = []
 lst_strTimeSec = []
 lst_strTimeDt = []
 
+fCurrBTCBal = 0.0
 
 def setActiveLogPaths():
     print(f'\nGetting Active LOG PATHS...')
@@ -103,7 +104,9 @@ def fGetCurrPriceForSymbTick(bin_client, symbTick='BTCUSDT'):
     return float(strPrice)
 
 def getMaxBuyVolForAssetSymb(bin_client, currency='USDT', assetSymb='BTC', symbTick='BTCUSDT', maxPrec=8):
-    balance = fGetBalanceForSymb(bin_client, assetSymb=currency)
+    balance = fCurrBTCBal
+    if currency != 'BTC':
+        balance = fGetBalanceForSymb(bin_client, assetSymb=currency)
 
     print(f'\nGetting max buy volume for {symbTick}...')
     currPrice = fGetCurrPriceForSymbTick(bin_client, symbTick=symbTick)
@@ -244,9 +247,11 @@ if argCnt > 1:
                 print(f"{cStrDivider}", f" argv[{x}]: '{flagHelp}' detected", f"{cStrDivider}", f"{usage}", f"{cStrDivider}\n", sep='\n')
                 sys.exit()
         print(f"Done checking for '--help' flag...")
-        
+
         setApiKeys()
-        
+        fCurrBTCBal = fGetBalanceForSymb(client, assetSymb='BTC', maxPrec=9)
+        print(f'\nCurrent BTC Balance = {fCurrBTCBal}')
+
         print(f'\nChecking CLI flags...')
         for x in range(0, argCnt):
             argv = sys.argv[x].lower()
