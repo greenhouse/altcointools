@@ -23,22 +23,27 @@ client = None
 
 # CLI flags
 flagHelp = '--help'
-flag1 = '-m'
-flag2 = '-l'
+flag1 = '-m' # market
+flag2 = '-l' # limit
 flag3 = '--buy'
 flag4 = '--sell'
-flag5 = '-s'
+flag5 = '-s' # symbol
 flag6 = '--wait-symb'
-flag7 = '--view-max'
+flag7 = '-v' # volume
+flag8 = '-vr' # volume ratio
+flag10 = '--view-max'
 
 flag1_rec = flag2_rec = flag3_rec = flag4_rec = flag5_rec = False
 flag6_rec = flag7_rec = flag8_rec = flag9_rec = flag10_rec = False
 
 flag5_val = None
+flag7_val = None
+flag8_val = None
 
 iOrdNone = 0
 iOrdBuy = 1
 iOrdSell = 2
+iOrdBuyLimSell = 3
 
 fMarketBuyAdjPerc = 0.95
 
@@ -109,57 +114,51 @@ def getMaxBuyVolForAssetSymb(bin_client, currency='USDT', assetSymb='BTC', symbT
     print(f' {currency} balance = {balance}')
     print(f' {symbTick} currPrice = {truncate(currPrice, 8, bDecReturn=True)} | truncate @ maxPrec: 8')
     print(f' {assetSymb} maxVol = {maxVol} | pre-truncate @ maxPrec: {maxPrec}')
-    print(f' {assetSymb} maxVol = {maxVolTrunc} | truncate @ maxPrec: {maxPrec}')
-    print()
+    print(f' {assetSymb} maxVol = {maxVolTrunc} | truncate @ maxPrec: {maxPrec} \n')
+    
+    iPrec = maxPrec
+    fVolMax = truncate(maxVolTrunc, iPrec) * 1.0
+    fVolMaxAdj = truncate(maxVolTrunc * fMarketBuyAdjPerc, iPrec) #adjust vol from rising pump (set from global constant)
+    fVolMaxPerc75 = truncate(maxVolTrunc * 0.75, iPrec)
+    fVolMaxHalf = truncate(maxVolTrunc * 0.50, iPrec)
+    fVolMaxPerc25 = truncate(maxVolTrunc * 0.25, iPrec)
+    print(f"  {assetSymb} volume can buy...", f"max = {fVolMax}", f"max-adj ({fMarketBuyAdjPerc*100}%) = {fVolMaxAdj}", f"75% max = {fVolMaxPerc75}", f"50% max = {fVolMaxHalf}", f"25% max = {fVolMaxPerc25}", sep='\n   ')
+
     return maxVolTrunc
 
 def execMarketOrder(orderType, symb, symBTC, fVol, bin_client):
-    funcname = '(%s) goBinanceBuyMarket' % (filename,)
-    logenter(funcname, ' params: (%s, %s, %.4f, %s)' % (symb,symBTC,fVol,bin_client), tprint=False)
-    strTimeNow = getStrLocalDtTradeTime(getTimeSecNow(milli=True), getTimeSecNow(), use_milli_dt=False)
+    funcname = '<{__filename}> execMarketOrder'
+    print(f'{funcname} _ ENTER')
+    print(f' params: ({orderType}, {symb}, {symBTC}, {fVol}, {bin_client})')
     balance = '<error: failed to get balance>'
     order = '<error: failed to fill order>'
-    priceBTCUSDT = '<error: failed to get BTCUSDT price>'
     try:
-        loginfo(funcname, 'Executing "order_market_buy"...', simpleprint=True)
-        incRestCnt(start=True)
-        order = bin_client.order_market_buy(symbol=symBTC,quantity=fVol)
-        incRestCnt()
-        
-        incRestCnt(start=True)
-        balance = bin_client.get_asset_balance(asset=symb)
-        incRestCnt()
-        
-        priceBTCUSDT = getCurrPriceBTCUSDT(bin_client)
+        if orderType == iOrdBuy:
+            print('Executing "order_market_buy"...')
+            incRestCnt(start=True)
+            order = bin_client.order_market_buy(symbol=symBTC,quantity=fVol)
+            incRestCnt()
     except exceptions.BinanceAPIException as e:
-        title = "_BUY '%s': %.4f; *ERROR* -> BinanceAPIException [%s]" % (symBTC,fVol,strTimeNow)
-        text = 'exception: %s \n\nbalance: %s; \n\nOrder: %s' % (e,balance,order)
-        logerror(funcname,' title: %s \n text: %s \n' % (title,text), 'Exception data... \n type(e): %s \n e.args: %s \n e: %s ' % (type(e),e.args,e))
+        printException(e, debugLvl=2)
+        print(f'ERROR -> BinanceAPIException; checking for recursive trigger (to try again)...')
         if bMaxMarketBuy or bRatioMarketBuy:
             iSec = 0.5
-            logwarn(funcname, f' bMaxMarketBuy={bMaxMarketBuy} | bRatioMarketBuy={bRatioMarketBuy}... waiting {iSec} sec, then trying again...')
+            print(f"FOUND trigger -> bMaxMarketBuy={bMaxMarketBuy} | bRatioMarketBuy={bRatioMarketBuy}...", f"waiting {iSec} sec, then trying again...", sep='\n  ')
             time.sleep(iSec)   # wait 0.5 sec.
-            #fVolume = getMaxBTCBuyVolForAssetSymb(bin_client, assetSymb='USDT')
-            dVolumeMax = getMaxBuyVolForAssetSymb(bin_client, currency='BTC', assetSymb=symb, symbTick=symBTC, maxPrec=2)
-            fVolume = float(dVolumeMax) * fRatioMarketBuy #adjust volume to market buy ratio (set from input param through flag '-v')
-            fVolume = fVolume * fMarketBuyAdjPerc #adjust volume to rising pump value (set from global constant)
-            loginfo(filename, f"RECURSIVE '-v' flag w/ 'max' detected ... \n    set 'fVolume' = {fVolume} ... \n    adujusted from {dVolumeMax} ...\n", simpleprint=True)
+            dVolMax = getMaxBuyVolForAssetSymb(bin_client, currency='BTC', assetSymb=symb, symbTick=symBTC, maxPrec=2)
+            fVol = float(dVolMax) * fRatioMarketBuy #adjust vol w/ market buy ratio (set from input param through flag '-v')
+            fVol = fVol * fMarketBuyAdjPerc #adjust volume for rising price pump (set from global constant)
+            prin(f"RECURSIVE '-v' flag w/ 'max' detected ...", f"set 'fVol' = {fVol} ...", f"adujusted from {dVolMax} ...", sep='\n    ')
 
-            return goBinanceBuyMarket(symb,symBTC,fVolume,bin_client)
-
-        notify(title,text,enable=True,popup=True,goPrint=False) # spawn 'display dialog'
-        return False
+            return execMarketOrder(orderType, symb, symBTC, fVol, bin_client)
+        else:
+            print(f'ERROR -> BinanceAPIException; no recursive trigger found; exiting...')
+            printEndAndExit(2)
     except Exception as e:
-        title = "_BUY '%s': %.4f; *ERROR* [%s]" % (symBTC,fVol,strTimeNow)
-        text = 'exception: %s \n\nBalance: %s; \n\nOrder: %s' % (e,balance,order)
-        logerror(funcname,' title: %s \n text: %s \n' % (title,text), 'Exception data... \n type(e): %s \n e.args: %s \n e: %s ' % (type(e),e.args,e))
-        notify(title,text,enable=True,popup=True,goPrint=False) # spawn 'display dialog'
-        return False
+        printException(e, debugLvl=2)
+        printEndAndExit(3)
 
-    title = '_BUY %s: %.4f; SUCCESS! [%s]' % (symBTC,fVol,strTimeNow)
-    logNotify(balance,order,title, btcusdt=priceBTCUSDT)
     return order, balance
-
 
 def printEndAndExit(exit_code):
     funcname = f'<{__filename}> printEndAndExit'
@@ -167,15 +166,16 @@ def printEndAndExit(exit_code):
         print(f"{funcname} -> ERROR")
         if exit_code == 1:
             print(f"\n INPUT param error;")
-            print(f"  expected -> 'flag' [recieved]: '{flag1}' [{flag1_rec}]")
-            print(f"  expected -> 'flag' [recieved]: '{flag2}' [{flag2_rec}]")
-            print(f"  expected -> 'flag' [recieved]: '{flag3}' [{flag3_rec}]")
-            print(f"  expected -> 'flag' [recieved]: '{flag4}' [{flag4_rec}]")
+            print(f"  expected -> 'flag' [recieved]      : '{flag1}' [{flag1_rec}]")
+            print(f"  expected -> 'flag' [recieved]      : '{flag2}' [{flag2_rec}]")
+            print(f"  expected -> 'flag' [recieved]      : '{flag3}' [{flag3_rec}]")
+            print(f"  expected -> 'flag' [recieved]      : '{flag4}' [{flag4_rec}]")
             print(f"  expected -> 'flag' [recieved] 'val': '{flag5}' [{flag5_rec}] '{flag5_val}'")
-            print(f"  expected -> 'flag' [recieved]: '{flag6}' [{flag6_rec}]")
-            print(f"  expected -> 'flag' [recieved]: '{flag7}' [{flag7_rec}]")
+            print(f"  expected -> 'flag' [recieved]      : '{flag6}' [{flag6_rec}]")
+            print(f"  expected -> 'flag' [recieved] 'val': '{flag7}' [{flag7_rec}] '{flag7_val}'")
+            print(f"  expected -> 'flag' [recieved]      : '{flag10}' [{flag10_rec}]")
 
-        print(f"\n Example use:", f"  '$ python {__filename} -m --buy -s trx'", sep='\n')
+        print(f"\n Example use:", f"  '$ python {__filename} -m --buy -s trx -v 100'", sep='\n')
         print(f"\n For more info, use:", f"  '$ python {__filename} {flagHelp}'", sep='\n')
 
     global lst_iTimeSec, lst_strTimeSec, lst_strTimeDt
@@ -197,10 +197,13 @@ usage = ("\n*** General Script Manual ***\n\n"
          "  -s ['symbol']                set 'symbol' for order; i.e. 'TRX', 'XMR' (required) \n"
          "  --wait-symb                  prompt user for 'symbol' input (overrides -s) \n"
          "  --view-max                   get / calc max vol can buy with BTC bal in binance acct (overrides all) \n"
+         "  -v [amount]                  set volume amount for order (-v | -vr required) \n"
+         "  -vr [ratio]                  set volume ratio of max for order (-v | -vr required) \n"
          " \n"
          "EXAMPLES... \n"
          f" '$ python {__filename} --help' \n"
-         f" '$ python {__filename} -m --buy -s trx' \n"
+         f" '$ python {__filename} -m --buy -s trx' -v 100 \n"
+         f" '$ python {__filename} -m --buy -s trx' -vr 0.5 \n"
          f" '$ python {__filename} -m --buy -s trx --view-max' \n"
          f" '$ python {__filename} -m --buy -s trx --wait-symb' \n"
          f" '$ python {__filename} -m --buy -s trx --wait-symb --view-max' \n"
@@ -218,6 +221,7 @@ argCnt = len(sys.argv)
 if argCnt > 1:
     readCliArgs()
     fVolume = 0.0
+    fVolRatio = 0.0
     
     #required
     bIsMarketOrder = False
@@ -262,14 +266,13 @@ if argCnt > 1:
                 flag4_rec = bIsSellOrder = True
                 print(f" '{flag4}' limit flag detected; 'bIsSellOrder' = {bIsSellOrder}")
 
-            if argv == flag5 and not bWaitForSymb: # '-s'
+            if argv == flag5 and argCnt > x+1 and not bWaitForSymb: # '-s'
                 flag5_rec = True
                 argv1 = str(sys.argv[x+1])
                 if argv1[0:1] == '-': continue
-                
                 flag5_val = argv1
                 strAssSymb = str(argv1).upper()
-                print(f" '{flag5}' asset symbol flag detected; w/ value: '{flag5_val}'")
+                print(f" '{flag5}' asset symbol flag detected; w/ value = '{flag5_val}'")
 
             if argv == flag6: # '--wait-symb'
                 flag6_rec = bWaitForSymb = True
@@ -278,46 +281,71 @@ if argCnt > 1:
                 flag5_rec = True
                 flag5_val = argv1
                 strAssSymb = str(argv1).upper()
-                print(f"\n '{flag5}' asset symbol flag detected; w/ value: '{flag5_val}'")
+                print(f"\n '{flag5}' asset symbol flag detected; w/ value = '{flag5_val}'")
 
-            if argv == flag7: # '--view-max'
-                flag7_rec = bViewMaxDetect = True
-                print(f" '{flag7}' view max flag detected; 'bViewMaxDetect' = {bViewMaxDetect}")
+            if argv == flag7 and argCnt > x+1: # '-v'
+                flag7_rec = True
+                argv1 = str(sys.argv[x+1])
+                if argv1[0:1] == '-': continue
+                flag7_val = argv1
+                fVolume = float(argv1)
+                print(f" '{flag7}' volume flag detected; w/ value = '{flag7_val}'")
+            
+            if argv == flag8 and argCnt > x+1: # '-vr'
+                flag8_rec = True
+                argv1 = str(sys.argv[x+1])
+                if argv1[0:1] == '-': continue
+                flag8_val = flag7_val = argv1
+                fVolRatio = float(argv1)
+                print(f" '{flag8}' volume ratio flag detected; w/ value = '{flag8_val}'")
+
+            if argv == flag10: # '--view-max'
+                flag10_rec = bViewMaxDetect = True
+                print(f" '{flag10}' view max flag detected; 'bViewMaxDetect' = {bViewMaxDetect}")
 
         print(f'DONE checking CLI flags...')
         
         print(f'\nValidating required CLI params...')
-        if bIsMarketOrder == bIsLimitOrder: # validate only either 'market' or 'limit used
+        if bIsMarketOrder == bIsLimitOrder: # validate -m | -l (only either 'market' or 'limit used)
             printEndAndExit(1)
-        if bIsBuyOrder == bIsSellOrder: # validate only either 'buy' or 'sell' used
+        if bIsBuyOrder == bIsSellOrder: # validate --buy | -- sell (only either 'buy' or 'sell' used)
             printEndAndExit(1)
-        if flag5_val is None: # validate a symbol was provided
+        if flag5_val is None or flag7_val is None: # validate -s & -v (symbol & volume provided)
             printEndAndExit(1)
         print(f'DONE validating required CLI params...\n')
 
         if bViewMaxDetect: # PRIORITY if statement
+            print(f"PRIORITY flag '--view-max' detected")
             if strAssCurr is None: strAssCurr = 'BTC'
             strSymbTick = strAssSymb + strAssCurr
-            print(f'strAssSymb = {strAssSymb}')
-            print(f'strAssCurr = {strAssCurr}')
-            print(f'strSymbTick = {strSymbTick}')
+            print(f' strAssSymb = {strAssSymb}', f'strAssCurr = {strAssCurr}', f'strSymbTick = {strSymbTick}', sep='\n ')
             
             iPrec = 2
-            dVolMax = getMaxBuyVolForAssetSymb(client, currency=strAssCurr, assetSymb=strAssSymb, symbTick=strSymbTick, maxPrec=iPrec)
-            fVolMax = truncate(dVolMax, iPrec) * 1.0
-            fVolMaxAdj = truncate(dVolMax * fMarketBuyAdjPerc, iPrec) #adjust vol from rising pump (set from global constant)
-            fVolMaxPerc75 = truncate(dVolMax * 0.75, iPrec)
-            fVolMaxHalf = truncate(dVolMax * 0.50, iPrec)
-            fVolMaxPerc25 = truncate(dVolMax * 0.25, iPrec)
-            print(f" '--view-max' flag detected", f"\n {strAssSymb} volume can buy...", f"  max = {fVolMax}", f"  max-adj ({fMarketBuyAdjPerc*100}%) = {fVolMaxAdj}", f"  75% max = {fVolMaxPerc75}", f"  50% max = {fVolMaxHalf}", f"  25% max = {fVolMaxPerc25}", sep='\n ')
+            fVolMax = getMaxBuyVolForAssetSymb(client, currency=strAssCurr, assetSymb=strAssSymb, symbTick=strSymbTick, maxPrec=iPrec)
             print("\n\n exiting...\n")
             printEndAndExit(0)
 
-#        if bIsMarketOrder:
+        if flag8_rec: # '-vr'
+            print('TESTING... flag8_rec...')
+            if strAssCurr is None: strAssCurr = 'BTC'
+            strSymbTick = strAssSymb + strAssCurr
+            print(f' strAssSymb = {strAssSymb}', f'strAssCurr = {strAssCurr}', f'strSymbTick = {strSymbTick}', sep='\n ')
+            
+            iPrec = 2
+            fVolMax = getMaxBuyVolForAssetSymb(client, currency=strAssCurr, assetSymb=strAssSymb, symbTick=strSymbTick, maxPrec=iPrec)
+            fVolume = fVolMax * fVolRatio
+            print(f'TESTING... fVolume = {fVolume}; exiting...')
+            sys.exit()
+
+        if bIsMarketOrder:
+            #note: maybe we should integrate the recursive call here, in a loop?
+            print('(bIsMarketOrder) _ TESTING... exiting...')
+            sys.exit()
+            #execMarketOrder(iOrdBuy, strAssSymb, strSymbTick, fVolume, client)
 
     except ValueError as e:
         printException(e, debugLvl=0)
-        print(f'ERROR -> invalid input param (expected a number), exiting...')
+        print(f'ERROR -> Exception ValueError; invalid input param (expected a number), exiting...')
         printEndAndExit(2)
     except Exception as e:
         printException(e, debugLvl=2)
