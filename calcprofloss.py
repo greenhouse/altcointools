@@ -117,12 +117,10 @@ if argCnt > 1:
 
         goCLI(fBuyPrice, fSellPrice)
     except ValueError as e:
-#        print(cStrDividerExcept, f'Exception Caught: {ex}', cStrDividerExcept, sep='\n')
         printException(e)
         print(f'ERROR -> invalid input param (expected a number), exiting...')
         printEndAndExit(2)
     except Exception as e:
-#        print(cStrDividerExcept, f'Exception Caught: {e}', cStrDividerExcept, sep='\n')
         printException(e)
         printEndAndExit(3)
         #print type(e)       # the exception instance
