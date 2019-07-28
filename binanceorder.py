@@ -96,6 +96,14 @@ def bin_clientGoMarketBuy(bin_client, symbTick, fVol):
     print("Done executing 'order_market_buy'")
     return order
 
+def bin_clientGoMarketSell(bin_client, symbTick, fVol):
+    print("\nExecuting 'order_market_sell'...")
+    incRestCnt(start=True, note='order_market_sell')
+    order = bin_client.order_market_sell(symbol=symbTick,quantity=fVol)
+    incRestCnt(note='order_market_sell')
+    print("Done executing 'order_market_sell'")
+    return order
+
 def bin_clientGoLimitSell(bin_client, symbTick, fVol, strPrice):
     print("\nExecuting 'order_limit_sell'...")
     incRestCnt(start=True, note='order_limit_sell')
@@ -105,11 +113,13 @@ def bin_clientGoLimitSell(bin_client, symbTick, fVol, strPrice):
     return order
 
 def fGetBalanceForSymb(bin_client, assetSymb='USDT', maxPrec=9):
+    print(f'\nGetting free balance for {assetSymb}...')
     incRestCnt(start=True, note='get_asset_balance')
     balanceDict = bin_client.get_asset_balance(asset=assetSymb)
     incRestCnt(note='get_asset_balance')
 
     balance = float(balanceDict['free'])
+    print(f' {assetSymb} balance = {balance}')
     return balance
 
 def fGetCurrPriceForSymbTick(bin_client, symbTick='BTCUSDT'):
@@ -156,23 +166,32 @@ def getMaxBuyVolForAssetSymb(bin_client, currency='USDT', assetSymb='BTC', symbT
     return maxVolTrunc
 
 def execMarketOrder(orderType, symb, symbTick, fVol, bin_client, recurs=False):
-    funcname = '<{__filename}> execMarketOrder'
-    print(f'{funcname} _ ENTER')
-    print(f' params: (orderType={orderType}, {symb}, {symbTick}, {fVol}, {bin_client}), recurs={recurs}')
+    funcname = f'<{__filename}> execMarketOrder'
+    print(f'\nENTER _ {funcname} _ ')
+    print(f'  params: (orderType={orderType}, {symb}, {symbTick}, {fVol}, {bin_client}), recurs={recurs}')
     fSymbFinalBal = -1.0
-    order = {'ERROR': 'failed to fill order'}
+    order = {'ERROR': f"failed to fill '{symbTick}' order"}
+    orderSuccess = False
     try:
+        if orderType == iOrdSell:
+            order = bin_clientGoMarketSell(bin_client, symbTick, fVol)
+            orderSuccess = True
         if orderType == iOrdBuy:
             order = bin_clientGoMarketBuy(bin_client, symbTick, fVol)
+            orderSuccess = True
             
+        if orderSuccess:
             strOrderSymb = order['symbol']
             strFirstPrice = order['fills'][0]['price']
             strFirstFilledVol = order['fills'][0]['qty']
-            print(f" {strOrderSymb}  first purch. price = '{strFirstPrice}'")
-            print(f" {strOrderSymb}  first purch. volume = '{strFirstFilledVol}'")
-            
-            # final balance after order fills executed
-            fSymbFinalBal = fGetBalanceForSymb(bin_client, assetSymb=symb, maxPrec=9)
+            print(f" {strOrderSymb}  first order fill price  = '{strFirstPrice}'")
+            print(f" {strOrderSymb}  first order fill volume = '{strFirstFilledVol}'")
+        else:
+            print(f" {symbTick} orderSuccess = {orderSuccess}")
+            print(f" order = {order}")
+
+        # final balance after order fills executed
+        fSymbFinalBal = fGetBalanceForSymb(bin_client, assetSymb=symb, maxPrec=9)
     except exceptions.BinanceAPIException as e:
         printException(e, debugLvl=2)
         print(f'ERROR -> BinanceAPIException; checking for recursive trigger (to try again)...')
@@ -198,14 +217,14 @@ def execMarketOrder(orderType, symb, symbTick, fVol, bin_client, recurs=False):
         printException(e, debugLvl=2)
         printEndAndExit(3)
 
-    return order, fSymbFinalBal
+    return order, fSymbFinalBal, orderSuccess
 
-def printEndAndExit(exit_code):
+def printEndAndExit(exit_code, time_stamps=True):
     funcname = f'<{__filename}> printEndAndExit'
     if exit_code > 0:
-        print(f"{funcname} -> ERROR")
+        print(f"\nERROR _ {funcname} _ exit_code: {exit_code}")
         if exit_code == 1:
-            print(f"\n INPUT param error;")
+            print(f"\n INPUT param error caught;")
             print(f"  expected ->   [recieved] 'flag'       : [{flag1_rec}] '{flag1}'")
             print(f"  expected ->   [recieved] 'flag'       : [{flag2_rec}] '{flag2}'")
             print(f"  expected ->   [recieved] 'flag'       : [{flag3_rec}] '{flag3}'")
@@ -216,14 +235,20 @@ def printEndAndExit(exit_code):
             print(f"  expected ->   [recieved] 'flag' 'val' : [{flag8_rec}] '{flag8}' '{flag8_val}'")
             print(f"  expected ->   [recieved] 'flag'       : [{flag9_rec}] '{flag9}'")
             print(f"  expected ->   [recieved] 'flag'       : [{flag10_rec}] '{flag10}'")
-
+            print()
+        if exit_code == 2:
+            print(f"\n BINANCE or Value error caught;")
+        if exit_code == 3:
+            print(f"\n General Exception error caught;")
+                
         print(f"\n Example use:", f"  '$ python {__filename} -m --buy -s trx -v 100'", sep='\n')
         print(f"\n For more info, use:", f"  '$ python {__filename} {flagHelp}'", sep='\n')
 
     global lst_iTimeSec, lst_strTimeSec, lst_strTimeDt
     totExeTime = f"{incExeClock(' <- EXIT')} sec"
     print('', cStrDivider, f'END _ {__filename} _ sys.exit({exit_code}) __ RestCnt: {iCntRestReq} _ TotTime: {totExeTime}', cStrDivider, '', sep='\n')
-    getPrintListStr(lst=lst_strTimeSec, strListTitle=f'Time Stamps: {totExeTime}'), print()
+    if time_stamps:
+        getPrintListStr(lst=lst_strTimeSec, strListTitle=f'Time Stamps: {totExeTime}'), print()
     sys.exit(exit_code)
 
 usage = ("\n*** General Script Manual ***\n\n"
@@ -379,25 +404,49 @@ if argCnt > 1:
             printEndAndExit(0)
 
         if flag8_rec: # '-vr'
-            print('TESTING... flag8_rec...')
+            print(f"Volume Ratio flag '-vr' detected")
             if strAssCurr is None: strAssCurr = 'BTC'
             strSymbTick = strAssSymb + strAssCurr
-            print(f' strAssSymb = {strAssSymb}', f'strAssCurr = {strAssCurr}', f'strSymbTick = {strSymbTick}', sep='\n ')
+            print(f'  strAssSymb = {strAssSymb}', f'strAssCurr = {strAssCurr}', f'strSymbTick = {strSymbTick}', '', sep='\n  ')
             
-            iPrec = 2
-            fVolMax = getMaxBuyVolForAssetSymb(client, currency=strAssCurr, assetSymb=strAssSymb, symbTick=strSymbTick, maxPrec=iPrec)
-            fVolume = fVolMax * fInputVolRatio
-            fVolume = truncate(fVolume, 0)
+            if bIsSellOrder:
+                fSymbBal = fGetBalanceForSymb(client, assetSymb=strAssSymb, maxPrec=9)
+                fVolume = fSymbBal * fInputVolRatio
+                fVolume = truncate(fVolume, 0)
+            
+            if bIsBuyOrder:
+                iPrec = 2
+                fVolMax = getMaxBuyVolForAssetSymb(client, currency=strAssCurr, assetSymb=strAssSymb, symbTick=strSymbTick, maxPrec=iPrec)
+                fVolume = fVolMax * fInputVolRatio
+                fVolume = truncate(fVolume, 0)
+
+        if bIsMarketOrder and bIsSellOrder:
+            order, fBalance, success = execMarketOrder(iOrdSell, strAssSymb, strSymbTick, fVolume, client)
+            if success:
+                strOrderSymb = order['symbol']
+                lst_OrderFills = order['fills']
+                lst_FillPrices = [f" {i} -> price: '{v['price']}'; vol: '{v['qty']}'" for i,v in enumerate(lst_OrderFills)]
+                iFillCnt = len(lst_OrderFills)
+                print(f"\n {strOrderSymb}  all sell orders... (# of fills: {iFillCnt})", *lst_FillPrices, sep='\n  ')
+                print(f" {strOrderSymb}  final bal = {fBalance}\n")
+                print(f"\nSUCCESSFULLY EXECUTED _ SELL ORDER\n")
+            else:
+                print(f" {strSymbTick} success = {success}")
+                print(f" {strSymbTick} final bal = {fBalance}\n")
+
+            print("\n\n exiting...\n")
+            printEndAndExit(0)
 
         if bIsMarketOrder and bIsBuyOrder:
             #note: maybe we should integrate the recursive call here, in a loop?
-            order, fBalance = execMarketOrder(iOrdBuy, strAssSymb, strSymbTick, fVolume, client, recurs=bIsBuyOrderRecurs)
+            order, fBalance, success = execMarketOrder(iOrdBuy, strAssSymb, strSymbTick, fVolume, client, recurs=bIsBuyOrderRecurs)
             strOrderSymb = order['symbol']
             lst_OrderFills = order['fills']
-            lst_FillPrices = [f" {i}-> price: '{v['price']}'; vol: '{v['qty']}'" for i,v in enumerate(lst_OrderFills)]
+            lst_FillPrices = [f" {i} -> price: '{v['price']}'; vol: '{v['qty']}'" for i,v in enumerate(lst_OrderFills)]
             iFillCnt = len(lst_OrderFills)
-            print(f" {strOrderSymb}  all purches... (# of fills: {iFillCnt})", *lst_FillPrices, sep='\n ')
+            print(f"\n {strOrderSymb}  all buy orders... (# of fills: {iFillCnt})", *lst_FillPrices, sep='\n  ')
             print(f" {strOrderSymb}  final bal = {fBalance}\n")
+            print(f"\nSUCCESSFULLY EXECUTED _ BUY ORDER\n")
             if bSetLimitOrders:
                 pass # still needs CLI flag to enable
                 fBuyPrice = float(lst_FillPrices[0])
@@ -420,6 +469,7 @@ if argCnt > 1:
                 fSellQuart2Price = fBuyPrice * fSellRatioQ2
                 strSellQuart2Price = str(fSellQuart2Price)
                 limitOrder = bin_clientGoLimitSell(bin_client, symbTick, fSellQuart2Vol, strSellQuart2Price)
+                print(f"\nSUCCESSFULLY EXECUTED _ LIMIT SELL ORDERS\n")
             print("\n\n exiting...\n")
             printEndAndExit(0)
 
