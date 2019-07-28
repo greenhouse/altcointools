@@ -189,14 +189,14 @@ usage = ("\n*** General Script Manual ***\n\n"
          f" {__filename} -> CLI tool for binance limit/market orders  \n"
          " \n"
          "INPUT PARAMS / FLAGS... \n"
-         " --help                       show this help screen (overrides all) \n"
-         " -m                           enable 'market' order (-m | -l required) \n"
-         " -l                           enable 'limit' order (-m | -l required) \n"
-         " --buy                        enable 'buy' order (--buy | --sell required) \n"
-         " --sell                       enable 'sell' order (--buy | --sell required) \n"
-         " -s ['symbol']                set 'symbol' for order; i.e. 'TRX', 'XMR' (required) \n"
-         " --wait-symb                  prompt user for 'symbol' input (overrides -s) \n"
-         " --view-max                   get / calc max vol can buy with BTC bal in binance acct (overrides all) \n"
+         "  --help                       show this help screen (overrides all) \n"
+         "  -m                           enable 'market' order (-m | -l required) \n"
+         "  -l                           enable 'limit' order (-m | -l required) \n"
+         "  --buy                        enable 'buy' order (--buy | --sell required) \n"
+         "  --sell                       enable 'sell' order (--buy | --sell required) \n"
+         "  -s ['symbol']                set 'symbol' for order; i.e. 'TRX', 'XMR' (required) \n"
+         "  --wait-symb                  prompt user for 'symbol' input (overrides -s) \n"
+         "  --view-max                   get / calc max vol can buy with BTC bal in binance acct (overrides all) \n"
          " \n"
          "EXAMPLES... \n"
          f" '$ python {__filename} --help' \n"
@@ -209,38 +209,6 @@ usage = ("\n*** General Script Manual ***\n\n"
          " \n"
          " exiting... \n"
          )
-
-#usage = ("\nHELP! HELP! HELP! \n\n"
-#         f"DESCRIPTION... {filename} -> CLI tool for binance buy  \n"
-#         "      MARKET buy specified volume of specified symbol \n"
-#         "      MARKET buy total volume of specified symbol \n"
-#         "      view max volume of MARKET buy for specified symbol \n"
-#         " \n"
-#         "INPUT PARAMS / FLAGS... \n"
-#         " -m                           enable 'market' order (required) \n"
-#         " -s ['sym']                   set symbol to buy (required) \n"
-#         " -v [amnt | 'max']            set volume amount to buy \n"
-#         " -v ['1/4' | '2/4' | '3/4']   set volume amount to buy \n"
-#         " -v ['max view']              calculate & display max volume amount can buy \n"
-#         " -v ['3/4 view']              calculate & display 75% volume amount can buy \n"
-#         " -v ['2/4 view']              calculate & display 50% volume amount can buy \n"
-#         " -v ['1/4 view']              calculate & display 25% volume amount can buy \n"
-#         " \n"
-#         "EXAMPLES... \n"
-#         " '$ python altbinance_buy.py -m -s trx -v 37' \n"
-#         " '$ python altbinance_buy.py -m -s trx -v max' \n"
-#         " '$ python altbinance_buy.py -m -s trx -v 3/4' \n"
-#         " '$ python altbinance_buy.py -m -s trx -v 2/4' \n"
-#         " '$ python altbinance_buy.py -m -s trx -v 1/4' \n"
-#         " '$ python altbinance_buy.py -m -s trx -v max view' \n"
-#         " '$ python altbinance_buy.py -m -s trx -v 3/4 view' \n"
-#         " '$ python altbinance_buy.py -m -s trx -v 2/4 view' \n"
-#         " '$ python altbinance_buy.py -m -s trx -v 1/4 view' \n"
-#         " . . . \n\n"
-#         "NOTE: no 'limit' order integration yet \n"
-#         " \n"
-#         " exiting... \n"
-#         )
 
 incExeClock(' <- ENTER')
 setActiveLogPaths()
@@ -354,44 +322,6 @@ if argCnt > 1:
     except Exception as e:
         printException(e, debugLvl=2)
         printEndAndExit(3)
-
-
-
-#    try:
-#        print(f'\nChecking CLI flags...')
-#        for x in range(0, argCnt):
-#            argv = sys.argv[x]
-#            if argv == flagHelp:
-#                print(f"{cStrDivider}", f" argv[{x}]: '{flagHelp}' detected", f"{cStrDivider}", f"{usage}", f"{cStrDivider}", sep='\n')
-#                bHelpDetected = True
-#                sys.exit()
-#
-#            if argv == flag1: # '-b'
-#                argv1 = str(sys.argv[x+1])
-#                flag1_val = argv1
-#                fBuyPrice = float(argv1)
-#                print(f" '{flag1}' fBuyPri ce flag detected w/ price: '{fBuyPrice}'")
-#
-#            if argv == flag2: # '-s'
-#                argv1 = str(sys.argv[x+1])
-#                flag2_val = argv1
-#                fSellPrice = float(argv1)
-#                print(f" '{flag2}' fSellPrice flag detected w/ price: '{fSellPrice}'")
-#
-#        print(f'DONE checking CLI flags...\n')
-#        if flag1_val is None or flag1_val is None:
-#            printEndAndExit(1)
-#
-#        goCLI(fBuyPrice, fSellPrice)
-#    except ValueError as e:
-#        printException(e)
-#        print(f'ERROR -> invalid input param (expected a number), exiting...')
-#        printEndAndExit(2)
-#    except Exception as e:
-#        printException(e)
-#        printEndAndExit(3)
-
-
 else:
     printEndAndExit(1)
 print(f'\n\n * END _ {__filename} * \n\n')
