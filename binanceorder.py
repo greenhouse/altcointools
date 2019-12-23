@@ -33,13 +33,19 @@ flag7 = '-v' # volume
 flag8 = '-vr' # volume ratio
 flag9 = '--buy-r' # buy recursive
 flag10 = '--view'
+flag11 = '--set-ls'
+flag12 = '-c' # currency
+flag13 = '--term-launch' # launch additionl term tools'
 
 flag1_rec = flag2_rec = flag3_rec = flag4_rec = flag5_rec = False
 flag6_rec = flag7_rec = flag8_rec = flag9_rec = flag10_rec = False
+flag11_rec = flag12_rec = flag13_rec = False
 
+flag2_val = None
 flag5_val = None
 flag7_val = None
 flag8_val = None
+flag12_val = None
 
 iOrdNone = 0
 iOrdBuy = 1
@@ -104,6 +110,14 @@ def bin_clientGoMarketSell(bin_client, symbTick, fVol):
     print("Done executing 'order_market_sell'")
     return order
 
+def bin_clientGoLimitBuy(bin_client, symbTick, fVol, strPrice):
+    print("\nExecuting 'order_limit_buy'...")
+    incRestCnt(start=True, note='order_limit_buy')
+    order = bin_client.order_limit_buy(symbol=symbTick,quantity=fVol,price=strPrice)
+    incRestCnt(note='order_limit_buy')
+    print("Done executing 'order_limit_buy'")
+    return order
+
 def bin_clientGoLimitSell(bin_client, symbTick, fVol, strPrice):
     print("\nExecuting 'order_limit_sell'...")
     incRestCnt(start=True, note='order_limit_sell')
@@ -112,14 +126,14 @@ def bin_clientGoLimitSell(bin_client, symbTick, fVol, strPrice):
     print("Done executing 'order_limit_sell'")
     return order
 
-def fGetBalanceForSymb(bin_client, assetSymb='USDT', maxPrec=9):
+def fGetBalanceForSymb(bin_client, assetSymb='nil', maxPrec=9):
     print(f'\nGetting free balance for {assetSymb}...')
     incRestCnt(start=True, note='get_asset_balance')
     balanceDict = bin_client.get_asset_balance(asset=assetSymb)
     incRestCnt(note='get_asset_balance')
 
     balance = float(balanceDict['free'])
-    print(f' {assetSymb} balance = {balance}')
+    #print(f' {assetSymb} balance = {balance}')
     return balance
 
 def fGetCurrPriceForSymbTick(bin_client, symbTick='BTCUSDT'):
@@ -131,13 +145,15 @@ def fGetCurrPriceForSymbTick(bin_client, symbTick='BTCUSDT'):
     strPrice = str(price).rstrip('0')
     return float(strPrice)
 
-def getMaxBuyVolForAssetSymb(bin_client, currency='USDT', assetSymb='BTC', symbTick='BTCUSDT', maxPrec=8):
+def getMaxBuyVolForAssetSymb(bin_client, currency='USDT', assetSymb='BTC', assetPrice='-1.0', symbTick='BTCUSDT', maxPrec=8):
     balance = fCurrBTCBal
     if currency != 'BTC':
         balance = fGetBalanceForSymb(bin_client, assetSymb=currency)
 
     print(f'\nGetting max buy volume for {symbTick}...')
-    currPrice = fGetCurrPriceForSymbTick(bin_client, symbTick=symbTick)
+    currPrice = float(assetPrice)
+    if not currPrice > 0.0:
+        currPrice = fGetCurrPriceForSymbTick(bin_client, symbTick=symbTick)
     maxVol = decimal.Decimal(balance / currPrice)
     maxVolTrunc = truncate(maxVol, maxPrec)
 
@@ -165,13 +181,52 @@ def getMaxBuyVolForAssetSymb(bin_client, currency='USDT', assetSymb='BTC', symbT
 
     return maxVolTrunc
 
+def printOrderStatus(order={}, symbTick=None, success=False):
+    print(f" {symbTick} orderSuccess = {success}")
+    print(getStrJsonPretty(order))
+
+def execLimitOrder(orderType, symb, symbTick, fVol, strPrice, bin_client, recurs=False):
+    funcname = f'<{__filename}> execLimitOrder'
+    print(f'\nENTER _ {funcname} _ ')
+    print(f'  params: (orderType={orderType}, {symb}, {symbTick}, {fVol}, {strPrice}, {bin_client}), recurs={recurs}')
+    
+    order = {'ERROR': f"failed to fill '{symbTick}' limit order"}
+    orderSuccess = False
+    fSymbFinalBal = -1.0
+    try:
+        if orderType == iOrdSell:
+            order = bin_clientGoLimitSell(bin_client, symbTick, fVol, strPrice)
+            orderSuccess = True
+        if orderType == iOrdBuy:
+            order = bin_clientGoLimitBuy(bin_client, symbTick, fVol, strPrice)
+            orderSuccess = True
+
+        printOrderStatus(order, symbTick, success=orderSuccess)
+
+        # final balance after order fills executed
+        fSymbFinalBal = fGetBalanceForSymb(bin_client, assetSymb=symb, maxPrec=9)
+    except exceptions.BinanceAPIException as e:
+        printException(e, debugLvl=2)
+        print(f'ERROR -> BinanceAPIException; checking for recursive trigger (to try again)...')
+        if recurs:
+            pass
+        else:
+            print(f'ERROR -> BinanceAPIException; no recursive trigger found; exiting...')
+            printEndAndExit(2)
+    except Exception as e:
+        printException(e, debugLvl=2)
+        printEndAndExit(3)
+
+    return order, fSymbFinalBal, orderSuccess
+
 def execMarketOrder(orderType, symb, symbTick, fVol, bin_client, recurs=False):
     funcname = f'<{__filename}> execMarketOrder'
     print(f'\nENTER _ {funcname} _ ')
     print(f'  params: (orderType={orderType}, {symb}, {symbTick}, {fVol}, {bin_client}), recurs={recurs}')
-    fSymbFinalBal = -1.0
-    order = {'ERROR': f"failed to fill '{symbTick}' order"}
+    
+    order = {'ERROR': f"failed to fill '{symbTick}' market order"}
     orderSuccess = False
+    fSymbFinalBal = -1.0
     try:
         if orderType == iOrdSell:
             order = bin_clientGoMarketSell(bin_client, symbTick, fVol)
@@ -226,7 +281,7 @@ def printEndAndExit(exit_code, time_stamps=True):
         if exit_code == 1:
             print(f"\n INPUT param error caught;")
             print(f"  expected ->   [recieved] 'flag'       : [{flag1_rec}] '{flag1}'")
-            print(f"  expected ->   [recieved] 'flag'       : [{flag2_rec}] '{flag2}'")
+            print(f"  expected ->   [recieved] 'flag' 'val' : [{flag2_rec}] '{flag2}' '{flag2_val}'")
             print(f"  expected ->   [recieved] 'flag'       : [{flag3_rec}] '{flag3}'")
             print(f"  expected ->   [recieved] 'flag'       : [{flag4_rec}] '{flag4}'")
             print(f"  expected ->   [recieved] 'flag' 'val' : [{flag5_rec}] '{flag5}' '{flag5_val}'")
@@ -235,6 +290,9 @@ def printEndAndExit(exit_code, time_stamps=True):
             print(f"  expected ->   [recieved] 'flag' 'val' : [{flag8_rec}] '{flag8}' '{flag8_val}'")
             print(f"  expected ->   [recieved] 'flag'       : [{flag9_rec}] '{flag9}'")
             print(f"  expected ->   [recieved] 'flag'       : [{flag10_rec}] '{flag10}'")
+            print(f"  expected ->   [recieved] 'flag'       : [{flag11_rec}] '{flag11}'")
+            print(f"  expected ->   [recieved] 'flag'       : [{flag12_rec}] '{flag12}'")
+            print(f"  expected ->   [recieved] 'flag'       : [{flag13_rec}] '{flag13}'")
             print()
         if exit_code == 2:
             print(f"\n BINANCE or Value error caught;")
@@ -258,25 +316,35 @@ usage = ("\n*** General Script Manual ***\n\n"
          "INPUT PARAMS / FLAGS... \n"
          "  --help                       show this help screen (overrides all) \n"
          "  -m                           enable 'market' order (-m | -l required) \n"
-         "  -l                           enable 'limit' order (-m | -l required) \n"
+         "  -l ['price']                 enable 'limit' order & set price (-m | -l required) \n"
          "  --buy                        enable 'buy' order (--buy | --buy-r | --sell required) \n"
          "  --buy-r                      enable 'buy recursively' for active pump condition (--buy | --buy-r | --sell required) \n"
          "  --sell                       enable 'sell' order (--buy | --buy-r | --sell required) \n"
+         "  -c ['currency']              set 'currency' for asset; i.e. 'BTC' in 'TRXBTC' - or - 'USDT' in 'BTCUSDT' (defaults to 'BTC') \n"
          "  -s ['symbol']                set 'symbol' for order; i.e. 'TRX', 'XMR' (required) \n"
          "  --wait-s                     prompt user for 'symbol' input (overrides -s) \n"
          "  --view                       get / calc various ratio vol can buy with BTC bal in binance acct (overrides all) \n"
          "  -v [amount]                  set order volume amount (-v | -vr required) \n"
          "  -vr [ratio]                  set order volume ratio of max available (-v | -vr required) \n"
+         "  --set-ls                     set limit sell orders after market buy; REQUIRES -m & (--buy | --buy-r) \n"
+         "  --term-launch                launch additional tools (set manually in source code) \n"
          " \n"
          "EXAMPLES... \n"
          f" '$ python {__filename} --help' \n"
-         f" '$ python {__filename} -m --buy -s trx' -v 100 \n"
-         f" '$ python {__filename} -m --buy -s trx' -vr 0.5 \n"
-         f" '$ python {__filename} -m --buy-r -s trx' -vr 0.5 \n"
+         f" '$ python {__filename} -s BTC -c USDT -vr 0.95 --buy -m' \n"
+         f" '$ python {__filename} -s BTC -c USDT -vr 1.0 --buy -l 7264.0' \n"
+         f" '$ python {__filename} -s BTC -c USDT -vr 1.0 --sell -l 7499.97' \n"
+         f" '$ python {__filename} -s BTC -c USDT -vr 1.0 --sell -m' \n"
+         f" '$ python {__filename} -s trx' -v 100 --buy -l 0.00000217' \n"
+         f" '$ python {__filename} -s trx --sell -m' \n"
+         f" '$ python {__filename} -m --buy -s trx' -vr 0.5 --set-ls' \n"
+         f" '$ python {__filename} -m --buy -s trx' -vr 0.5 --set-ls --term-launch' \n"
+         f" '$ python {__filename} -m --buy -s trx' -v 100' \n"
+         f" '$ python {__filename} -m --buy -s trx' -vr 0.5' \n"
+         f" '$ python {__filename} -m --buy-r -s trx' -vr 0.5' \n"
          f" '$ python {__filename} -m --buy -s trx --view' \n"
          f" '$ python {__filename} -m --buy -s trx --wait-s' \n"
          f" '$ python {__filename} -m --buy -s trx --wait-s --view' \n"
-         f" '$ python {__filename} -m --sell -s trx' \n"
          " . . . \n"
          " \n"
          " exiting... \n"
@@ -290,6 +358,7 @@ argCnt = len(sys.argv)
 if argCnt > 1:
     readCliArgs()
     fVolume = 0.0
+    strLimPrice = '0.0'
     
     #required
     bIsMarketOrder = False
@@ -304,6 +373,8 @@ if argCnt > 1:
     bViewMaxDetect = False
     bWaitForSymb = False
     bSetLimitOrders = False
+
+    bTermLaunch = False
     
     try:
         print(f"\nChecking for '--help' flag...")
@@ -315,8 +386,15 @@ if argCnt > 1:
         print(f"Done checking for '--help' flag...")
 
         setApiKeys()
-        fCurrBTCBal = fGetBalanceForSymb(client, assetSymb='BTC', maxPrec=9)
-        print(f'\nCurrent BTC Balance = {fCurrBTCBal}')
+        #print(f'\nCurrent BTC Balance = {fCurrUSDTBal}')
+        
+        assetSymb='BTC'
+        fCurrBTCBal = fGetBalanceForSymb(client, assetSymb=assetSymb, maxPrec=9)
+        print(f'DONE -> Current {assetSymb} Balance = {fCurrBTCBal} BTC')
+        
+        assetSymb='USDT'
+        fCurrUSDTBal = fGetBalanceForSymb(client, assetSymb=assetSymb, maxPrec=3)
+        print(f'DONE -> Current {assetSymb} Balance = ${fCurrUSDTBal}')
 
         print(f'\nChecking CLI flags...')
         for x in range(0, argCnt):
@@ -327,7 +405,12 @@ if argCnt > 1:
 
             if argv == flag2: # '-l'
                 flag2_rec = bIsLimitOrder = True
+                argv1 = str(sys.argv[x+1])
+                if argv1[0:1] == '-': continue
+                flag2_val = argv1
+                strLimPrice = str(argv1)
                 print(f" '{flag2}' limit flag detected; 'bIsLimitOrder' = {bIsLimitOrder}")
+                print(f" '{flag2}' limit flag detected; w/ value = '{flag2_val}'")
 
             if argv == flag3: # '--buy'
                 flag3_rec = bIsBuyOrder = True
@@ -378,7 +461,22 @@ if argCnt > 1:
             if argv == flag10: # '--view'
                 flag10_rec = bViewMaxDetect = True
                 print(f" '{flag10}' view max flag detected; 'bViewMaxDetect' = {bViewMaxDetect}")
+            
+            if argv == flag11: # '--set-ls'
+                flag11_rec = bSetLimitOrders = True
+                print(f" '{flag11}' set limit sells flag detected; 'bSetLimitOrders' = {bSetLimitOrders}")
+            
+            if argv == flag12: # '-c'
+                flag12_rec = True
+                argv1 = str(sys.argv[x+1])
+                if argv1[0:1] == '-': continue
+                strAssCurr = flag12_val = argv1
+                print(f" '{flag2}' currency flag detected; w/ value = '{flag12_val}'; default was 'BTC'", sep='\n')
 
+            if argv == flag13: # '--term-launch'
+                flag13_rec = bTermLaunch = True
+                print(f" '{flag13}' set limit sells flag detected; 'bTermLaunch' = {bTermLaunch}")
+                    
         print(f'DONE checking CLI flags...')
         
         print(f'\nValidating required CLI params...')
@@ -386,41 +484,76 @@ if argCnt > 1:
             printEndAndExit(1)
         if bIsBuyOrder == bIsSellOrder: # validate --buy | --buy-r | -- sell (only either 'buy' or 'sell' used)
             printEndAndExit(1)
-        if flag5_val is None: # validate -s | --wait-s (symbol rovided)
+        if flag5_val is None: # validate -s | --wait-s (symbol provided)
             printEndAndExit(1)
         if flag7_val is None and flag8_val is None: # validate -v | -vr (vol or vol ratio provided)
             printEndAndExit(1)
+        if bIsLimitOrder and flag2_val is None: # validate -l (price was included)
+            printEndAndExit(1)
         print(f'DONE validating required CLI params...\n')
 
-        if bViewMaxDetect: # PRIORITY if statement
-            print(f"PRIORITY flag '--view' detected")
-            if strAssCurr is None: strAssCurr = 'BTC'
-            strSymbTick = strAssSymb + strAssCurr
-            print(f' strAssSymb = {strAssSymb}', f'strAssCurr = {strAssCurr}', f'strSymbTick = {strSymbTick}', sep='\n ')
-            
-            iPrec = 2
+        print(f'\nValidating currency requirement set...')
+        if strAssCurr is None:
+            print(" currency requirement NOT set... assigning 'BTC'")
+            strAssCurr = 'BTC'
+        strSymbTick = strAssSymb + strAssCurr
+        print(f'  strAssCurr = {strAssCurr}', f'strAssSymb = {strAssSymb}', f'strSymbTick = {strSymbTick}', sep='\n  ')
+        print(f'DONE validating currency requirement set...\n')
+
+        if bViewMaxDetect: # PRIORITY if statement '--view'
+            print(f"PRIORITY flag '{flag10}' detected")
+
+            # set volume precision to 8 decimal places if symbol is 'BTC' (else set to 2 decimal places)
+            iPrec = 6 if strAssSymb == 'BTC' else 2
             fVolMax = getMaxBuyVolForAssetSymb(client, currency=strAssCurr, assetSymb=strAssSymb, symbTick=strSymbTick, maxPrec=iPrec)
             print("\n\n exiting...\n")
             printEndAndExit(0)
 
         if flag8_rec: # '-vr'
-            print(f"Volume Ratio flag '-vr' detected")
-            if strAssCurr is None: strAssCurr = 'BTC'
-            strSymbTick = strAssSymb + strAssCurr
-            print(f'  strAssSymb = {strAssSymb}', f'strAssCurr = {strAssCurr}', f'strSymbTick = {strSymbTick}', '', sep='\n  ')
-            
+            print(f"Volume Ratio flag '{flag8}' detected")
             if bIsSellOrder:
                 fSymbBal = fGetBalanceForSymb(client, assetSymb=strAssSymb, maxPrec=9)
                 fVolume = fSymbBal * fInputVolRatio
-                fVolume = truncate(fVolume, 0)
+                #fVolume = truncate(fVolume, 0)
+                fVolume = truncate(fVolume, 6) if strAssCurr == 'USDT' else truncate(fVolume, 0)
             
             if bIsBuyOrder:
-                iPrec = 2
-                fVolMax = getMaxBuyVolForAssetSymb(client, currency=strAssCurr, assetSymb=strAssSymb, symbTick=strSymbTick, maxPrec=iPrec)
+#                iPrec = 2
+                # set volume precision to 8 decimal places if symbol is 'BTC' (else set to 2 decimal places)
+                iPrec = 6 if strAssSymb == 'BTC' else 2
+                price = '-1.0' if strLimPrice is None else strLimPrice
+                fVolMax = getMaxBuyVolForAssetSymb(client, currency=strAssCurr, assetSymb=strAssSymb, assetPrice=price, symbTick=strSymbTick, maxPrec=iPrec)
                 fVolume = fVolMax * fInputVolRatio
-                fVolume = truncate(fVolume, 0)
+#                fVolume = truncate(fVolume, 0)
+                fVolume = truncate(fVolume, iPrec if strAssSymb == 'BTC' else 0)
+
+        if bIsLimitOrder and bIsSellOrder:
+            print(f"Limit Order Sell flags '{flag2} {flag4}' detected")
+            order, fBalance, success = execLimitOrder(iOrdSell, strAssSymb, strSymbTick, fVolume, strLimPrice, client, recurs=False)
+            if success:
+                print(f"\nSUCCESSFULLY executed _ LIMIT SELL ORDER\n")
+            else:
+                print(f" {strSymbTick} success = {success}")
+                print(f" {strSymbTick} final bal = {fBalance}\n")
+
+            print("\n\n exiting...\n")
+            printEndAndExit(0)
+
+        if bIsLimitOrder and bIsBuyOrder:
+            strFlag = '--buy-r' if flag9_rec else '--buy'
+            print(f"Limit Order Buy flags '{flag2} {strFlag}' detected")
+            order, fBalance, success = execLimitOrder(iOrdBuy, strAssSymb, strSymbTick, fVolume, strLimPrice, client, recurs=False)
+            if success:
+                print(f"\nSUCCESSFULLY executed _ LIMIT BUY ORDER\n")
+            else:
+                print(f" {strSymbTick} success = {success}")
+                print(f" {strSymbTick} final bal = {fBalance}\n")
+
+            print("\n\n exiting...\n")
+            printEndAndExit(0)
 
         if bIsMarketOrder and bIsSellOrder:
+            print('\n', f"Market Order Sell flags '{flag1} {flag4}' detected")
             order, fBalance, success = execMarketOrder(iOrdSell, strAssSymb, strSymbTick, fVolume, client)
             if success:
                 strOrderSymb = order['symbol']
@@ -429,7 +562,7 @@ if argCnt > 1:
                 iFillCnt = len(lst_OrderFills)
                 print(f"\n {strOrderSymb}  all sell orders... (# of fills: {iFillCnt})", *lst_FillPrices, sep='\n  ')
                 print(f" {strOrderSymb}  final bal = {fBalance}\n")
-                print(f"\nSUCCESSFULLY EXECUTED _ SELL ORDER\n")
+                print(f"\nSUCCESSFULLY executed _ MARKET SELL ORDER\n")
             else:
                 print(f" {strSymbTick} success = {success}")
                 print(f" {strSymbTick} final bal = {fBalance}\n")
@@ -438,38 +571,56 @@ if argCnt > 1:
             printEndAndExit(0)
 
         if bIsMarketOrder and bIsBuyOrder:
+            strFlag = flag9 if flag9_rec else flag3
+            print('\n', f"Market Order Buy flags '{flag1} {strFlag}' detected")
             #note: maybe we should integrate the recursive call here, in a loop?
             order, fBalance, success = execMarketOrder(iOrdBuy, strAssSymb, strSymbTick, fVolume, client, recurs=bIsBuyOrderRecurs)
             strOrderSymb = order['symbol']
             lst_OrderFills = order['fills']
             lst_FillPrices = [f" {i} -> price: '{v['price']}'; vol: '{v['qty']}'" for i,v in enumerate(lst_OrderFills)]
+            lst_FillPricesVal = [v['price'] for i,v in enumerate(lst_OrderFills)]
             iFillCnt = len(lst_OrderFills)
             print(f"\n {strOrderSymb}  all buy orders... (# of fills: {iFillCnt})", *lst_FillPrices, sep='\n  ')
             print(f" {strOrderSymb}  final bal = {fBalance}\n")
-            print(f"\nSUCCESSFULLY EXECUTED _ BUY ORDER\n")
+            print(f"\nSUCCESSFULLY executed _ MARKET BUY ORDER\n")
             if bSetLimitOrders:
-                pass # still needs CLI flag to enable
-                fBuyPrice = float(lst_FillPrices[0])
+                print(f"Market buy w/ Set Limit Sells flags '{flag1} {strFlag} {flag11}' detected")
+                strBuyPrice = lst_FillPricesVal[0]
+                if strBuyPrice[-1] == '0': strBuyPrice = strBuyPrice[:-1]
+                idxOfDec = strBuyPrice.find('.')
+                iPriceDecCnt = len(strBuyPrice[idxOfDec+1:])
+                iTrunc = iPriceDecCnt #iTrunc = 7
+                
+                fSellProfPerc = 0.05
+                fBuyPrice = float(strBuyPrice)
                 fFullVolume = fBalance
+#                fSellRatioProf = 1.0 + fSellProfPerc
+#
+#                fSellFullVol = truncate(fFullVolume, 0)
+#                fSellFullPrice = fBuyPrice * fSellRatioProf
+#                strSellHalfPrice = f'%.{iTrunc}f' % fSellFullPrice
+#                order, fBalance, success = execLimitOrder(iOrdSell, strAssSymb, strSymbTick, fSellFullVol, strSellHalfPrice, client, recurs=False)
+
                 fSellRatioHalf = 1.25
                 fSellRatioQ1 = 1.30
                 fSellRatioQ2 = 1.40
-                
+
                 fSellHalfVol = truncate(fFullVolume / 2, 0)
-                fSellHalfPrice = fBuyPrice * fSellRatioHalf
-                strSellHalfPrice = str(fSellHalfPrice)
-                limitOrder = bin_clientGoLimitSell(bin_client, symbTick, fSellHalfVol, strSellHalfPrice)
-                
+                fSellHalfPrice = truncate(fBuyPrice * fSellRatioHalf, 8)
+                strSellHalfPrice = f'%.{iTrunc}f' % fSellHalfPrice
+                order, fBalance, success = execLimitOrder(iOrdSell, strAssSymb, strSymbTick, fSellHalfVol, strSellHalfPrice, client, recurs=False)
+
                 fSellQuart1Vol = truncate(fFullVolume / 4, 0)
-                fSellQuart1Price = fBuyPrice * fSellRatioQ1
-                strSellQuart1Price = str(fSellQuart1Price)
-                limitOrder = bin_clientGoLimitSell(bin_client, symbTick, fSellQuart1Vol, strSellQuart1Price)
-                
+                fSellQuart1Price = truncate(fBuyPrice * fSellRatioQ1, 8)
+                strSellQuart1Price = f'%.{iTrunc}f' % fSellQuart1Price
+                order, fBalance, success = execLimitOrder(iOrdSell, strAssSymb, strSymbTick, fSellQuart1Vol, strSellQuart1Price, client, recurs=False)
+
                 fSellQuart2Vol = truncate(fFullVolume / 4, 0)
-                fSellQuart2Price = fBuyPrice * fSellRatioQ2
-                strSellQuart2Price = str(fSellQuart2Price)
-                limitOrder = bin_clientGoLimitSell(bin_client, symbTick, fSellQuart2Vol, strSellQuart2Price)
-                print(f"\nSUCCESSFULLY EXECUTED _ LIMIT SELL ORDERS\n")
+                fSellQuart2Price = truncate(fBuyPrice * fSellRatioQ2, 8)
+                strSellQuart2Price = f'%.{iTrunc}f' % fSellQuart2Price
+                order, fBalance, success = execLimitOrder(iOrdSell, strAssSymb, strSymbTick, fSellQuart2Vol, strSellQuart2Price, client, recurs=False)
+                print(f"\nSUCCESSFULLY executed _ RATIO LIMIT SELL ORDERS\n")
+
             print("\n\n exiting...\n")
             printEndAndExit(0)
 
@@ -480,6 +631,35 @@ if argCnt > 1:
     except Exception as e:
         printException(e, debugLvl=2)
         printEndAndExit(3)
+    finally:
+        if bTermLaunch:
+#            strAssSymb = None
+#            strAssCurr = None
+#            strSymbTick = None
+
+#            if not strBuyPrice: strBuyPrice = '0.0'
+            strSymb = strAssSymb
+
+            pyPath = '~/devbtc/git/altcointools/calcprofloss.py'
+            strArgs = f'-b {strBuyPrice} -s {strBuyPrice} _symb: {strSymb}'
+            launchTerminalPython(pyPath, strArgs)
+
+            pyPath = '~/devbtc/git/altcoins/binance/depthsock.py'
+            strArgs = f'{strSymb} -p 10'
+            launchTerminalPython(pyPath, strArgs)
+
+            pyPath = '~/devbtc/git/altcoins/binance/depthsock.py'
+            strArgs = f'{strSymb} -s 15 -r 1.0 --noasks =={strBuyPrice} ==={strBuyPrice} -t ttys015'
+            launchTerminalPython(pyPath, strArgs)
+
+            #pyPath = '~/devbtc/git/altcoins/binance/depthsock.py'
+            #strArgs = f'{strSymb} -s 15 -r 1.0'
+            #launchTerminalPython(pyPath, strArgs)
+
+            #pyPath = '~/devbtc/git/altcointools/binance/binanceorder.py'
+            #strArgs = f'-m -s {strSymb} -c BTC --buy -vr 0.5 --view'
+            #launchTerminalPython(pyPath, strArgs)
+
 else:
     printEndAndExit(1)
 print(f'\n\n * END _ {__filename} * \n\n')
