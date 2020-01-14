@@ -506,7 +506,7 @@ if argCnt > 1:
             # set volume precision to 8 decimal places if symbol is 'BTC' (else set to 2 decimal places)
             iPrec = 6 if strAssSymb == 'BTC' else 2
             fVolMax = getMaxBuyVolForAssetSymb(client, currency=strAssCurr, assetSymb=strAssSymb, symbTick=strSymbTick, maxPrec=iPrec)
-            print("\n\n exiting...\n")
+            print(" exiting...\n")
             printEndAndExit(0)
 
         if flag8_rec: # '-vr'
@@ -536,7 +536,7 @@ if argCnt > 1:
                 print(f" {strSymbTick} success = {success}")
                 print(f" {strSymbTick} final bal = {fBalance}\n")
 
-            print("\n\n exiting...\n")
+            print(" exiting...\n")
             printEndAndExit(0)
 
         if bIsLimitOrder and bIsBuyOrder:
@@ -549,7 +549,7 @@ if argCnt > 1:
                 print(f" {strSymbTick} success = {success}")
                 print(f" {strSymbTick} final bal = {fBalance}\n")
 
-            print("\n\n exiting...\n")
+            print(" exiting...\n")
             printEndAndExit(0)
 
         if bIsMarketOrder and bIsSellOrder:
@@ -567,7 +567,7 @@ if argCnt > 1:
                 print(f" {strSymbTick} success = {success}")
                 print(f" {strSymbTick} final bal = {fBalance}\n")
 
-            print("\n\n exiting...\n")
+            print(" exiting...\n")
             printEndAndExit(0)
 
         if bIsMarketOrder and bIsBuyOrder:
@@ -621,7 +621,7 @@ if argCnt > 1:
                 order, fBalance, success = execLimitOrder(iOrdSell, strAssSymb, strSymbTick, fSellQuart2Vol, strSellQuart2Price, client, recurs=False)
                 print(f"\nSUCCESSFULLY executed _ RATIO LIMIT SELL ORDERS\n")
 
-            print("\n\n exiting...\n")
+            print(" exiting...\n")
             printEndAndExit(0)
 
     except ValueError as e:
