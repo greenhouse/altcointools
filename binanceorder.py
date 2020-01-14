@@ -558,7 +558,7 @@ if argCnt > 1:
             if success:
                 strOrderSymb = order['symbol']
                 lst_OrderFills = order['fills']
-                lst_FillPrices = [f" {i} -> price: '{v['price']}'; vol: '{v['qty']}'" for i,v in enumerate(lst_OrderFills)]
+                lst_FillPrices = [f" {i} -> price: '{v['price'].rstrip('0')}'; vol: '{v['qty'].rstrip('0')}'" for i,v in enumerate(lst_OrderFills)]
                 iFillCnt = len(lst_OrderFills)
                 print(f"\n {strOrderSymb}  all sell orders... (# of fills: {iFillCnt})", *lst_FillPrices, sep='\n  ')
                 print(f" {strOrderSymb}  final bal = {fBalance}\n")
@@ -577,7 +577,7 @@ if argCnt > 1:
             order, fBalance, success = execMarketOrder(iOrdBuy, strAssSymb, strSymbTick, fVolume, client, recurs=bIsBuyOrderRecurs)
             strOrderSymb = order['symbol']
             lst_OrderFills = order['fills']
-            lst_FillPrices = [f" {i} -> price: '{v['price']}'; vol: '{v['qty']}'" for i,v in enumerate(lst_OrderFills)]
+            lst_FillPrices = [f" {i} -> price: '{v['price'].rstrip('0')}'; vol: '{v['qty'].rstrip('0')}'" for i,v in enumerate(lst_OrderFills)]
             lst_FillPricesVal = [v['price'] for i,v in enumerate(lst_OrderFills)]
             iFillCnt = len(lst_OrderFills)
             print(f"\n {strOrderSymb}  all buy orders... (# of fills: {iFillCnt})", *lst_FillPrices, sep='\n  ')
