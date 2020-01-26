@@ -36,10 +36,12 @@ flag10 = '--view'
 flag11 = '--set-ls'
 flag12 = '-c' # currency
 flag13 = '--term-launch' # launch additionl term tools'
+flag14 = '--open-orders' # display current open orders
+flag15 = '--open-orders-cancel' # cancel all current open orders
 
 flag1_rec = flag2_rec = flag3_rec = flag4_rec = flag5_rec = False
 flag6_rec = flag7_rec = flag8_rec = flag9_rec = flag10_rec = False
-flag11_rec = flag12_rec = flag13_rec = False
+flag11_rec = flag12_rec = flag13_rec = flag14_rec = flag15_rec = False
 
 flag2_val = None
 flag5_val = None
@@ -126,6 +128,43 @@ def bin_clientGoLimitSell(bin_client, symbTick, fVol, strPrice):
     print("Done executing 'order_limit_sell'")
     return order
 
+def bin_clientGetOpenOrders(bin_client, symbTick):
+    print("\nExecuting 'get_open_orders'...")
+    incRestCnt(start=True, note='get_open_orders')
+    lstOrders = []
+    lstOrders = bin_client.get_open_orders(symbol=symbTick)
+    incRestCnt(note='get_open_orders')
+    print("Done executing 'get_open_orders'")
+    return lstOrders
+
+def bin_clientCancelOrder(bin_client, symbTick, iOrderID):
+    print(f"\nExecuting 'cancel_order'... (orderID: {iOrderID})")
+    incRestCnt(start=True, note='cancel_order')
+    order = bin_client.cancel_order(symbol=symbTick, orderId=iOrderID)
+    incRestCnt(note='cancel_order')
+    print("Done executing 'cancel_order'")
+    return order
+
+def lstGetOpenOrderIDs(arrOrders, symbTick):
+    arrOrderIdsReturn = []
+    for dictOrder in arrOrders:
+        symbol = dictOrder['symbol']
+        orderId = dictOrder['orderId']
+        clientOrderId = dictOrder['clientOrderId']
+        strPrice = dictOrder['price']
+        strOrigQty = dictOrder['origQty']
+        strExecutedQty = dictOrder['executedQty']
+        strCummQuoteQty = dictOrder['cummulativeQuoteQty']
+        strTypeLimMark = dictOrder['type']
+        strSideBuySell = dictOrder['side']
+        strMarker = '------------------------------------------------------------>'
+        print(f"\n INFO '{symbol}' order {strTypeLimMark} {strSideBuySell} id: {orderId} ...")
+        print(f'  price    {strMarker} price: {strPrice}', f'  orig vol {strMarker} orig vol: {strOrigQty}', sep='\n')
+        print(f'  exec vol: {strExecutedQty}', f'  cummulative vol: {strCummQuoteQty}', sep='\n')
+        if symbol.lower() == symbTick.lower():
+            arrOrderIdsReturn.append(orderId)
+    return arrOrderIdsReturn
+
 def fGetBalanceForSymb(bin_client, assetSymb='nil', maxPrec=9):
     print(f'\nGetting free balance for {assetSymb}...')
     incRestCnt(start=True, note='get_asset_balance')
@@ -185,10 +224,49 @@ def printOrderStatus(order={}, symbTick=None, success=False):
     print(f" {symbTick} orderSuccess = {success}")
     print(getStrJsonPretty(order))
 
+#NOTE: only canceling ‘ALL’ orders is currently supported
+def execOpenOrder(bin_client, symbTick, goCancelAll=False, recurs=False):
+    funcname = f'<{__filename}> execOpenOrder'
+    print(f'\nENTER _ {funcname} _ ')
+    print(f'  params: ({bin_client}, {symbTick}, goCancelAll={goCancelAll})')
+
+    arrOrders = arrOrderIds = []
+    try:
+        arrOrders = bin_clientGetOpenOrders(bin_client, symbTick)
+        arrOrderIds = lstGetOpenOrderIDs(arrOrders, symbTick)
+
+        iCntId = len(arrOrderIds)
+        if iCntId < 1:
+            print(' 0 open orders found')
+
+        strLogID = 'ID' if iCntId == 1 else 'IDs'
+        if goCancelAll:
+            print(f' RECEIVED {iCntId} order {strLogID} to cancel\n')
+            for iOrderID in arrOrderIds:
+                print(f'Attempting to cancel order ID: {iOrderID}...')
+                order = bin_clientCancelOrder(bin_client, symbTick, iOrderID)
+                print(f'Canceled Order:\n{getStrJsonPretty(order)}\n')
+            print(f'\n FOUND & Canceled {iCntId} open order {strLogID}: {arrOrderIds}')
+        else:
+            print(f'\n FOUND (returning) {iCntId} open order {strLogID}: {arrOrderIds}')
+    except exceptions.BinanceAPIException as e:
+        printException(e, debugLvl=2)
+        print(f'ERROR -> BinanceAPIException; checking for recursive trigger (to try again)...')
+        if recurs:
+            pass
+        else:
+            print(f'ERROR -> BinanceAPIException; no recursive trigger found; exiting...')
+            printEndAndExit(2)
+    except Exception as e:
+        printException(e, debugLvl=2)
+        printEndAndExit(3)
+
+    return arrOrderIds
+
 def execLimitOrder(orderType, symb, symbTick, fVol, strPrice, bin_client, recurs=False):
     funcname = f'<{__filename}> execLimitOrder'
     print(f'\nENTER _ {funcname} _ ')
-    print(f'  params: (orderType={orderType}, {symb}, {symbTick}, {fVol}, {strPrice}, {bin_client}), recurs={recurs}')
+    print(f'  params: (orderType={orderType}, {symb}, {symbTick}, {fVol}, {strPrice}, {bin_client}, recurs={recurs})')
     
     order = {'ERROR': f"failed to fill '{symbTick}' limit order"}
     orderSuccess = False
@@ -222,7 +300,7 @@ def execLimitOrder(orderType, symb, symbTick, fVol, strPrice, bin_client, recurs
 def execMarketOrder(orderType, symb, symbTick, fVol, bin_client, recurs=False):
     funcname = f'<{__filename}> execMarketOrder'
     print(f'\nENTER _ {funcname} _ ')
-    print(f'  params: (orderType={orderType}, {symb}, {symbTick}, {fVol}, {bin_client}), recurs={recurs}')
+    print(f'  params: (orderType={orderType}, {symb}, {symbTick}, {fVol}, {bin_client}, recurs={recurs})')
     
     order = {'ERROR': f"failed to fill '{symbTick}' market order"}
     orderSuccess = False
@@ -274,6 +352,98 @@ def execMarketOrder(orderType, symb, symbTick, fVol, bin_client, recurs=False):
 
     return order, fSymbFinalBal, orderSuccess
 
+#def goCancelOpenOrders(symb, symBTC, bin_client, arrOrderIds=[]):
+#    funcname = '(%s) goCancelOpenOrders' % (filename,)
+#    logenter(funcname, ' params: (%s, %s, %s, OrderIds: %s)' % (symb,symBTC,bin_client,arrOrderIds))
+#    strTimeNow = getStrLocalDtTradeTime(getTimeSecNow(milli=True), getTimeSecNow(), use_milli_dt=False)
+#    arrOrders = []
+#    balance = '<warning: failed to get balance>'
+#    order = '<warning: failed to cancel order IDs: %s>' % arrOrderIds
+#    iCntId = len(arrOrderIds)
+#    if iCntId < 1:
+#        title = '_CANCEL_ORDERS %s: FAILED!\n _Recieved 0 open order IDs to cancel' % (symBTC,)
+#        logNotify(balance,order,title,warning=True)
+#        return False
+#
+#    strLogID = 'ID' if iCntId == 1 else 'IDs'
+#    loginfo(funcname, '_RECEIVED %i order %s to cancel\n' % (iCntId,strLogID), simpleprint=True)
+#    for iOrderID in arrOrderIds:
+#        try:
+#            loginfo(funcname, 'Attempting to cancel order ID: %i...' % iOrderID, simpleprint=True)
+#            balSymb = bin_client.get_asset_balance(asset=symb)
+#            balance = bin_client.get_asset_balance(asset='btc')
+#            loginfo(funcname, 'Balances (PRE-cancel_order):\n%s\n%s\n' % (strJsonPretty(balSymb),strJsonPretty(balance)), simpleprint=True)
+#
+#            loginfo(funcname, 'Executing "cancel_order" ID: %i...' % iOrderID, simpleprint=True)
+#            order = bin_client.cancel_order(symbol=symBTC, orderId=iOrderID)
+#            loginfo(funcname, 'Canceled Order:\n%s\n' % strJsonPretty(order), simpleprint=True)
+#
+#            balSymb = bin_client.get_asset_balance(asset=symb)
+#            balance = bin_client.get_asset_balance(asset='btc')
+#            loginfo(funcname, 'Balances (POST-cancel_order):\n%s\n%s\n' % (strJsonPretty(balSymb),strJsonPretty(balance)), simpleprint=True)
+#
+#            #arrOrders.append(order)
+#            arrOrders.append(iOrderID)
+#        except exceptions.BinanceAPIException as e:
+#            title = "_CANCEL_ORDER '%s': ID(%i) *ERROR* -> BinanceAPIException [%s]" % (symBTC,iOrderID,strTimeNow)
+#            logExeption(e,balance,order,title)
+#            return False
+#        except Exception as e:
+#            title = "_CANCEL_ORDER '%s': ID(%i) *ERROR* [%s]" % (symBTC,iOrderID,strTimeNow)
+#            logExeption(e,balance,order,title)
+#            return False
+#
+#    title = '_CANCEL_ORDERS %s: SUCCESS!\n_Canceled %i open order %s: %s' % (symBTC,iCntId,strLogID,arrOrderIds)
+#    logNotify(balance,arrOrders,title)
+#    return True
+
+#def getOpenOrderIds(symb, symBTC, bin_client):
+#    funcname = '(%s) getOpenOrderIds' % (filename,)
+#    logenter(funcname, ' params: (%s, %s, %s)' % (symb,symBTC,bin_client))
+#    strTimeNow = getStrLocalDtTradeTime(getTimeSecNow(milli=True), getTimeSecNow(), use_milli_dt=False)
+#    arrOrders = arrOrderIdsReturn = []
+#    balance = '<error: failed to get balance>'
+#    order = '<error: failed to get orders>'
+#    try:
+#        balSymb = bin_client.get_asset_balance(asset=symb)
+#        balance = bin_client.get_asset_balance(asset='btc')
+#        loginfo(funcname, 'Balances (PRE-get_open_orders):\n%s\n%s\n' % (strJsonPretty(balSymb),strJsonPretty(balance)), simpleprint=True)
+#
+#        loginfo(funcname, 'Executing "get_open_orders"...', simpleprint=True)
+#        arrOrders = bin_client.get_open_orders(symbol=symBTC)
+#        loginfo(funcname, 'Open Orders:\n%s\n' % strJsonPretty(arrOrders), simpleprint=True)
+#    except exceptions.BinanceAPIException as e:
+#        title = "_OPEN_ORDERS '%s': *ERROR* -> BinanceAPIException [%s]" % (symBTC,strTimeNow)
+#        logExeption(e,balance,arrOrders,title)
+#    except Exception as e:
+#        title = "_OPEN_ORDERS '%s': *ERROR* [%s]" % (symBTC,strTimeNow)
+#        logExeption(e,balance,arrOrders,title)
+#
+#    for dictOrder in arrOrders:
+#        symbol = dictOrder['symbol']
+#        orderId = dictOrder['orderId']
+#        clientOrderId = dictOrder['clientOrderId']
+#        strPrice = dictOrder['price']
+#        strOrigQty = dictOrder['origQty']
+#        strExecutedQty = dictOrder['executedQty']
+#        strCummQuoteQty = dictOrder['cummulativeQuoteQty']
+#        strTypeLimMark = dictOrder['type']
+#        strSideBuySell = dictOrder['side']
+#        strMarker = '------------------------------------------------------------>'
+#        print(f"\n INFO '{symbol}' order {strTypeLimMark} {strSideBuySell} id: {orderId} ...")
+#        print(f'  price    {strMarker} price: {strPrice}', f'  orig vol {strMarker} orig vol: {strOrigQty}', sep='\n')
+#        print(f'  exec vol: {strExecutedQty}', f'  cummulative vol: {strCummQuoteQty}', sep='\n')
+#        if symbol.lower() == symBTC.lower():
+#            arrOrderIdsReturn.append(orderId)
+#
+#    iCntId = len(arrOrderIdsReturn)
+#    if iCntId < 1:
+#        logwarn(funcname, '0 open orders found', simpleprint=True)
+#
+#    strLogID = 'ID' if iCntId == 1 else 'IDs'
+#    loginfo(funcname, '\n FOUND (returning) %i open order %s: %s' % (iCntId,strLogID,arrOrderIdsReturn), simpleprint=True)
+#    return arrOrderIdsReturn
+
 def printEndAndExit(exit_code, time_stamps=True):
     funcname = f'<{__filename}> printEndAndExit'
     if exit_code > 0:
@@ -293,6 +463,8 @@ def printEndAndExit(exit_code, time_stamps=True):
             print(f"  expected ->   [recieved] 'flag'       : [{flag11_rec}] '{flag11}'")
             print(f"  expected ->   [recieved] 'flag'       : [{flag12_rec}] '{flag12}'")
             print(f"  expected ->   [recieved] 'flag'       : [{flag13_rec}] '{flag13}'")
+            print(f"  expected ->   [recieved] 'flag'       : [{flag14_rec}] '{flag14}'")
+            print(f"  expected ->   [recieved] 'flag'       : [{flag15_rec}] '{flag15}'")
             print()
         if exit_code == 2:
             print(f"\n BINANCE or Value error caught;")
@@ -328,9 +500,13 @@ usage = ("\n*** General Script Manual ***\n\n"
          "  -vr [ratio]                  set order volume ratio of max available (-v | -vr required) \n"
          "  --set-ls                     set limit sell orders after market buy; REQUIRES -m & (--buy | --buy-r) \n"
          "  --term-launch                launch additional tools (set manually in source code) \n"
+         "  --open-orders                display current open orders (overrides all except --view) \n"
+         "  --open-orders-cancel         cancel all current open orders (overrides all except --view) \n"
          " \n"
          "EXAMPLES... \n"
          f" '$ python {__filename} --help' \n"
+         f" '$ python {__filename} -s BTC -c USDT -vr 1.0 --buy -m --open-orders' \n"
+         f" '$ python {__filename} -s BTC -c USDT -vr 1.0 --sell -m --open-orders-cancel' \n"
          f" '$ python {__filename} -s BTC -c USDT -vr 0.95 --buy -m' \n"
          f" '$ python {__filename} -s BTC -c USDT -vr 1.0 --buy -l 7264.0' \n"
          f" '$ python {__filename} -s BTC -c USDT -vr 1.0 --sell -l 7499.97' \n"
@@ -375,6 +551,8 @@ if argCnt > 1:
     bSetLimitOrders = False
 
     bTermLaunch = False
+    bOpenOrders = False
+    bOpenOrdersCancel = False
     
     try:
         print(f"\nChecking for '--help' flag...")
@@ -477,6 +655,14 @@ if argCnt > 1:
                 flag13_rec = bTermLaunch = True
                 print(f" '{flag13}' set limit sells flag detected; 'bTermLaunch' = {bTermLaunch}")
                     
+            if argv == flag14: # '--open-orders'
+                flag14_rec = bOpenOrders = True
+                print(f" '{flag14}' display current open orders flag detected; 'bOpenOrders' = {bOpenOrders}")
+
+            if argv == flag15: # '--open-orders-cancel'
+                flag15_rec = bOpenOrdersCancel = True
+                print(f" '{flag15}' cancel all current open orders flag detected; 'bOpenOrdersCancel' = {bOpenOrdersCancel}")
+
         print(f'DONE checking CLI flags...')
         
         print(f'\nValidating required CLI params...')
@@ -500,12 +686,21 @@ if argCnt > 1:
         print(f'  strAssCurr = {strAssCurr}', f'strAssSymb = {strAssSymb}', f'strSymbTick = {strSymbTick}', sep='\n  ')
         print(f'DONE validating currency requirement set...\n')
 
-        if bViewMaxDetect: # PRIORITY if statement '--view'
+        # PRIORITY if statement '--view' (overrides all)
+        if bViewMaxDetect:
             print(f"PRIORITY flag '{flag10}' detected")
 
             # set volume precision to 8 decimal places if symbol is 'BTC' (else set to 2 decimal places)
             iPrec = 6 if strAssSymb == 'BTC' else 2
             fVolMax = getMaxBuyVolForAssetSymb(client, currency=strAssCurr, assetSymb=strAssSymb, symbTick=strSymbTick, maxPrec=iPrec)
+            print(" exiting...\n")
+            printEndAndExit(0)
+
+        # PRIORITY if statement '--open-orders' or '--open-orders-cancel' (overrides all except '--view')
+        if bOpenOrders or bOpenOrdersCancel:
+            flagDetect = flag14 if not flag15_rec else flag15
+            print(f"PRIORITY flag '{flagDetect}' detected")
+            arrOrderIds = execOpenOrder(client, symbTick=strSymbTick, goCancelAll=bOpenOrdersCancel)
             print(" exiting...\n")
             printEndAndExit(0)
 
