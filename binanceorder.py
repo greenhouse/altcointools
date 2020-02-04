@@ -384,7 +384,8 @@ def printEndAndExit(exit_code, time_stamps=True):
 
     global lst_iTimeSec, lst_strTimeSec, lst_strTimeDt
     totExeTime = f"{incExeClock(' <- EXIT')} sec"
-    print('', cStrDivider, f'END _ {__filename} _ sys.exit({exit_code}) __ RestCnt: {iCntRestReq} _ TotTime: {totExeTime}', cStrDivider, '', sep='\n')
+    currTimeStamp = getStrTimeNow()
+    print('', cStrDivider, f'END _ {__filename} _ sys.exit({exit_code}) __ RestCnt: {iCntRestReq} _ TotTime: {totExeTime} _ TimeStamp: {currTimeStamp}', cStrDivider, '', sep='\n')
     if time_stamps:
         getPrintListStr(lst=lst_strTimeSec, strListTitle=f'Time Stamps: {totExeTime}'), print()
     sys.exit(exit_code)
