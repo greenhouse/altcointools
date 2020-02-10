@@ -220,6 +220,34 @@ def getMaxBuyVolForAssetSymb(bin_client, currency='USDT', assetSymb='BTC', asset
 
     return maxVolTrunc
 
+def getVolStr(strVol='0.0'):
+    funcname = f'<{__filename}> getVolStr'
+    #print(f'\nENTER _ {funcname} _\n  params: (strVol={strVol})')
+    strVolStrip = strVol.rstrip('0')
+    strReturn = f"vol: '{strVolStrip}'"
+    return strReturn
+
+def getPriceStr(strPrice='0.0'):
+    funcname = f'<{__filename}> getPriceStr'
+    #print(f'\nENTER _ {funcname} _\n  params: (strPrice={strPrice})')
+    strPriceStrip = strPrice.rstrip('0')
+    strReturn = f"price: '{strPriceStrip}'"
+    return strReturn
+
+def getPriceProfStr(strBuyPrice='0.0', fPercRatio=0.01):
+    funcname = f'<{__filename}> getPriceProfStr'
+    #print(f'\nENTER _ {funcname} _\n  params: (strBuyPrice={strBuyPrice}, fPercRatio={fPercRatio})')
+
+    fPrice = float(strBuyPrice)
+    fPercPriceDiff = fPercRatio * fPrice
+    fProfPrice = fPrice + fPercPriceDiff
+
+    strPerc = str(fPercRatio * 100).rstrip('0') + '0'
+    strProfPrice = str(fProfPrice).rstrip('0')
+
+    strReturn = f"{cStrExtSpace03}=> {strPerc}% profit price: '{strProfPrice}'"
+    return strReturn
+
 def printOrderStatus(order={}, symbTick=None, success=False):
     print(f" {symbTick} orderSuccess = {success}")
     print(getStrJsonPretty(order))
@@ -681,8 +709,10 @@ if argCnt > 1:
             order, fBalance, success = execMarketOrder(iOrdBuy, strAssSymb, strSymbTick, fVolume, client, recurs=bIsBuyOrderRecurs)
             strOrderSymb = order['symbol']
             lst_OrderFills = order['fills']
-            #lst_FillPrices = [f" {i} -> price: '{v['price'].rstrip('0')}'; vol: '{v['qty'].rstrip('0')}'" for i,v in enumerate(lst_OrderFills)]
-            lst_FillPrices = [f" {i} -> price: '{v['price'].rstrip('0')}'; vol: '{v['qty'].rstrip('0')}'; => 1.0% profit price: {str(float(v['price']) + (0.01 * float(v['price']))).rstrip('0')}" for i,v in enumerate(lst_OrderFills)]
+            #lst_FillPrices = [f" {i} -> price: '{v['price'].rstrip('0')}'; vol: '{v['qty'].rstrip('0')}'; => 1.0% profit price: {str(float(v['price']) + (0.01 * float(v['price']))).rstrip('0')}" for i,v in enumerate(lst_OrderFills)]
+            fRat0_4, fRat0_5, fRat0_8, fRat1_0 = (0.004, 0.005, 0.008, 0.01)
+            lst_FillPrices = [f" {i} -> {getVolStr(v['qty'])}; {getPriceStr(v['price'])};\n{getPriceProfStr(v['price'], fRat0_4)};\n{getPriceProfStr(v['price'], fRat0_5)};\n{getPriceProfStr(v['price'], fRat0_8)};\n{getPriceProfStr(v['price'], fRat1_0)}" for i,v in enumerate(lst_OrderFills)]
+            #lst_FillPrices = [f" {i} -> vol: '{v['qty'].rstrip('0')}'; price: '{v['price'].rstrip('0')}';\n{getPriceProfStr(v['price'], fRat0_5)};\n{getPriceProfStr(v['price'], fRat0_8)};\n{getPriceProfStr(v['price'], fRat1_0)}" for i,v in enumerate(lst_OrderFills)]
             lst_FillPricesVal = [v['price'] for i,v in enumerate(lst_OrderFills)]
             iFillCnt = len(lst_OrderFills)
             print(f"\n {strOrderSymb}  all buy orders... (# of fills: {iFillCnt})", *lst_FillPrices, sep='\n  ')
