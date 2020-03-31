@@ -92,8 +92,7 @@ usage = ("\nHELP! HELP! HELP! \n\n"
          " '$ python calcprofloss -b [float] -s [float]' \n"
          " '$ python calcprofloss -b [float] -p [float]' \n"
          " . . . \n"
-         " \n"
-         " exiting... \n"
+         "\nHELP! HELP! HELP! _ exiting...\n"
          )
 
 argCnt = len(sys.argv)
