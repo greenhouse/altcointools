@@ -8,8 +8,10 @@ import decimal
 flagHelp = '--help'
 flag1 = '-b'
 flag2 = '-s'
+flag3 = '-p' # -p overrides -s
 flag1_val = None
 flag2_val = None
+flag3_val = None
 
 def calculateProfitLossPercent(fInitial, fFinal):
     step1 = fFinal / fInitial
@@ -20,16 +22,23 @@ def calculateProfitLossPercent(fInitial, fFinal):
     else:
         return step2 * 100.0
 
-def goCLI(fBuyPrice, fSellPrice):
+def goCLI(fBuyPrice, fSellPrice=0.0, fPercProf=0.0):
     print(f'Calculating ProfitLosss Percent...')
-    profLoss = calculateProfitLossPercent(fBuyPrice, fSellPrice)
+    buyPrice = sellPrice = profLoss = 0.0
+
+    if fPercProf > 0.0: # -p overrides -s
+        fSellPrice = fBuyPrice + (fBuyPrice * fPercProf)
+        profLoss = fPercProf * 100.0
+    else:
+        profLoss = calculateProfitLossPercent(fBuyPrice, fSellPrice)
     
     buyPrice = round(decimal.Decimal(fBuyPrice), 8)
     sellPrice = round(decimal.Decimal(fSellPrice), 8)
     profLoss = round(decimal.Decimal(profLoss), 2)
     strMarker = '------------------------------------------------------------>'
-    print(f' {strMarker} Buy Price: {buyPrice}')
+    print(f' {strMarker} Buy  Price: {buyPrice}')
     print(f' {strMarker} Sell Price: {sellPrice}')
+
     if fSellPrice > fBuyPrice:
         print(f' {strMarker} Profit: {profLoss}%')
     else:
@@ -61,8 +70,10 @@ def printEndAndExit(exit_code):
             print(f"\n INPUT param error;")
             print(f"  flag expected [recieved]: '{flag1} [{flag1_val}]'")
             print(f"  flag expected [recieved]: '{flag2} [{flag2_val}]'")
+            print(f"  flag expected [recieved]: '{flag3} [{flag3_val}]'")
 
         print(f"\n Example use:", f"  '$ python {filename} -b 100 -s 200'", sep='\n')
+        print(f"\n Example use:", f"  '$ python {filename} -b 100 -p 0.10' (-p overrides -s)", sep='\n')
         print(f"\n For more info, use:", f"  '$ python {filename} {flagHelp}'", sep='\n')
               
     print('', cStrDivider, f'END _ {filename} _ sys.exit({exit_code})', cStrDivider, '', sep='\n')
@@ -74,10 +85,12 @@ usage = ("\nHELP! HELP! HELP! \n\n"
          " \n"
          "INPUT PARAMS / FLAGS... \n"
          " -b [float]   set buy price (required)  \n"
-         " -s [float]   set sell price (required) \n"
+         " -s [float]   set sell price (-s | -p required) \n"
+         " -p [float]   set percent profit (-s | -p required; overrides -s) \n"
          " \n"
          "EXAMPLES... \n"
          " '$ python calcprofloss -b [float] -s [float]' \n"
+         " '$ python calcprofloss -b [float] -p [float]' \n"
          " . . . \n"
          " \n"
          " exiting... \n"
@@ -89,6 +102,7 @@ if argCnt > 1:
     bHelpDetected = False
     fBuyPrice = 0.0
     fSellPrice = 0.0
+    fPercProf = 0.0
 
     try:
         print(f'\nChecking CLI flags...')
@@ -111,11 +125,18 @@ if argCnt > 1:
                 fSellPrice = float(argv1)
                 print(f" '{flag2}' fSellPrice flag detected w/ price: '{fSellPrice}'")
 
+            if argv == flag3: # '-p' (overrides -s)
+                argv1 = str(sys.argv[x+1])
+                flag3_val = argv1
+                fPercProf = float(argv1)
+                fSellPrice = 0.0 # -p overrides -s
+                print(f" '{flag3}' fPercProf flag detected w/ price: '{fPercProf}'")
+
         print(f'DONE checking CLI flags...\n')
         if flag1_val is None or flag1_val is None:
             printEndAndExit(1)
 
-        goCLI(fBuyPrice, fSellPrice)
+        goCLI(fBuyPrice, fSellPrice, fPercProf)
     except ValueError as e:
         printException(e)
         print(f'ERROR -> invalid input param (expected a number), exiting...')
