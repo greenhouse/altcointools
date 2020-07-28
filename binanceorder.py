@@ -243,6 +243,10 @@ def getPriceProfStr(strBuyPrice='0.0', fPercRatio=0.01):
     fProfPrice = fPrice + fPercPriceDiff
 
     strPerc = str(fPercRatio * 100).rstrip('0') + '0'
+
+    # truncate 'fProfPrice' to '8' (digits) w/ 'bDecReturn=True'
+    #   truncate number param to specified digits amount, w/ decimal included
+    fProfPrice = truncate(fProfPrice, 8, bDecReturn=True)
     strProfPrice = str(fProfPrice).rstrip('0')
 
     strReturn = f"{cStrExtSpace03}=> {strPerc}% profit price: '{strProfPrice}'"
@@ -709,10 +713,33 @@ if argCnt > 1:
             order, fBalance, success = execMarketOrder(iOrdBuy, strAssSymb, strSymbTick, fVolume, client, recurs=bIsBuyOrderRecurs)
             strOrderSymb = order['symbol']
             lst_OrderFills = order['fills']
+
+            # DEAD CODE _ 072220: if below testing succeeds #
             #lst_FillPrices = [f" {i} -> price: '{v['price'].rstrip('0')}'; vol: '{v['qty'].rstrip('0')}'; => 1.0% profit price: {str(float(v['price']) + (0.01 * float(v['price']))).rstrip('0')}" for i,v in enumerate(lst_OrderFills)]
-            fRat0_4, fRat0_5, fRat0_8, fRat1_0 = (0.004, 0.005, 0.008, 0.01)
-            lst_FillPrices = [f" {i} -> {getVolStr(v['qty'])}; {getPriceStr(v['price'])};\n{getPriceProfStr(v['price'], fRat0_4)};\n{getPriceProfStr(v['price'], fRat0_5)};\n{getPriceProfStr(v['price'], fRat0_8)};\n{getPriceProfStr(v['price'], fRat1_0)}" for i,v in enumerate(lst_OrderFills)]
+            #fRat0_4, fRat0_5, fRat0_8, fRat1_0, fRat2_0, fRat3_0 = (0.004, 0.005, 0.008, 0.01, 0.02, 0.03)
+            #lst_FillPrices = [f" {i} -> {getVolStr(v['qty'])}; {getPriceStr(v['price'])};\n{getPriceProfStr(v['price'], fRat0_4)};\n{getPriceProfStr(v['price'], fRat0_5)};\n{getPriceProfStr(v['price'], fRat0_8)};\n{getPriceProfStr(v['price'], fRat1_0)};\n{getPriceProfStr(v['price'], fRat2_0)};\n{getPriceProfStr(v['price'], fRat3_0)}" for i,v in enumerate(lst_OrderFills)]
+            # _ DEAD CODE _ 072220: if below testing succeeds _ #
+
+            # organize above execution using multiple lines
+            fRat0_4, fRat0_5, fRat0_8, fRat1_0, fRat2_0, fRat3_0 = (0.004, 0.005, 0.008, 0.01, 0.02, 0.03)
+            fRat4_0, fRat5_0, fRat6_0, fRat7_0, fRat8_0, fRat9_0 = (0.04, 0.05, 0.06, 0.07, 0.08, 0.09)
+            lst_FillPrices = [f" {i} -> {getVolStr(v['qty'])}; {getPriceStr(v['price'])};\n \
+                {getPriceProfStr(v['price'], fRat0_4)};\n \
+                {getPriceProfStr(v['price'], fRat0_5)};\n \
+                {getPriceProfStr(v['price'], fRat0_8)};\n \
+                {getPriceProfStr(v['price'], fRat1_0)};\n \
+                {getPriceProfStr(v['price'], fRat2_0)};\n \
+                {getPriceProfStr(v['price'], fRat3_0)};\n \
+                {getPriceProfStr(v['price'], fRat4_0)};\n \
+                {getPriceProfStr(v['price'], fRat5_0)};\n \
+                {getPriceProfStr(v['price'], fRat6_0)};\n \
+                {getPriceProfStr(v['price'], fRat7_0)};\n \
+                " for i,v in enumerate(lst_OrderFills)]
+                                
+            # DEAD CODE _ 072220: if above testing succeeds #
             #lst_FillPrices = [f" {i} -> vol: '{v['qty'].rstrip('0')}'; price: '{v['price'].rstrip('0')}';\n{getPriceProfStr(v['price'], fRat0_5)};\n{getPriceProfStr(v['price'], fRat0_8)};\n{getPriceProfStr(v['price'], fRat1_0)}" for i,v in enumerate(lst_OrderFills)]
+            # _ DEAD CODE _ 072220: if above testing succeeds _ #
+
             lst_FillPricesVal = [v['price'] for i,v in enumerate(lst_OrderFills)]
             iFillCnt = len(lst_OrderFills)
             print(f"\n {strOrderSymb}  all buy orders... (# of fills: {iFillCnt})", *lst_FillPrices, sep='\n  ')
